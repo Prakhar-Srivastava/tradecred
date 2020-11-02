@@ -1,0 +1,7 @@
+This is a very simple implementation of the given task,
+I have made a very simple frontend a with an upload button and some components
+to show the data fetched from backend
+
+The backend is written in nodejs and is hosted on Google Cloud App engine
+
+The frontend is in ReactJS and is hosted on heroku
