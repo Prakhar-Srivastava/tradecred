@@ -6,10 +6,7 @@ import {useState} from 'react';
 const remote = true, 
 	URL = remote ? 'https://scenic-crossbar-287116.el.r.appspot.com/' : 'http://localhost:8080/';
 
-function readHandler({target}){
-
-	alert("You file was short and is processed without the uplod");
-
+function readHandler({target}, callback){
 	const wb = XLSX.read(target.result, {type: "binary", cellDates: true}),
 		data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 	
@@ -34,7 +31,11 @@ function readHandler({target}){
 		return !seenAlready && mustHaves && validDate;
 	});
 
-	return fetch(URL, {
+
+	const amountSum = valid.reduce((last, el) => last + el['Amt in loc.cur.'], 0),
+	vendors = (new Set(valid.map(el => el['Vendor Code']))).size;
+
+	fetch(URL, {
 		method: 'POST',
 		mode: 'cors',
 		cache: 'no-cache',
@@ -46,20 +47,53 @@ function readHandler({target}){
 		redirect: 'follow',
 		referrerPolicy: 'no-referrer',
 		body: JSON.stringify({invoices: valid})
-	})/*.then(resp => resp.json()
-			.then(d => console.log(d))
+	}).then(resp => resp.json()
+			.then(d => callback({
+				invoices: valid.length,
+				amountSum,
+				vendors,
+				invalid: data.length -  valid.length,
+				serverResponse: d
+			}))
 			.catch(err => console.error(err))
-	).catch(err => console.error(err));*/
+	).catch(err => console.error(err));
+
+	alert("You file was < 50 MB so was processed locally");
 }
 
 function fileUploader(file) {
 	let fd = new FormData();
 	fd.append('invoice_sheet', file);
 	return fetch(`${URL}upload`, {method: 'POST', body: fd})
-	// .then(resp => resp.json()
-	// 	.then((data) => console.log(data))
-	// 	.catch((err) => console.error(err))
-	// ).catch((err) => console.error(err));
+}
+
+function Info({
+	invoices,
+	amountSum,
+	vendors,
+	invalid
+}) {
+	return (
+		<div className="info-container">
+			<div className="pair">
+				<div className="value">{invoices}</div>
+				<div className="label">Invoices uploaded</div>
+			</div>
+			<div className="pair">
+				<div className="value">{amountSum}</div>
+				<div className="label">Total sum</div>
+			</div>
+			<div className="pair">
+				<div className="value">{vendors}</div>
+				<div className="label">Vendors updated</div>
+			</div>
+			<div className="pair">
+				<div className="value" style={{color: 'red'}}>{invalid}</div>
+				<div className="label" style={{color: 'red'}}>Invalid invoices</div>
+			</div>
+			
+		</div>
+	);
 }
 
 function App() {
@@ -74,13 +108,7 @@ function App() {
 			for(const file of files){
 				if(file.size < 50 * 1024 * 1024) {
 					const reader = new FileReader();
-					reader.onloadend = (e) => {
-						readHandler(e)
-						.then((resp) => resp.json()
-							.then((d) => setData(d))
-							.catch((err) => console.error(err))
-						).catch((err) => console.error(err));
-					};
+					reader.onloadend = (e) => readHandler(e, setData);
 					reader.readAsBinaryString(file);
 				} else
 					fileUploader(file)
@@ -94,11 +122,12 @@ function App() {
 
 	return (
 		<div className="App">
+			<h1 className="hero">Select your invoice sheet to upload data</h1>
 			<form>
 				<input type="file" accept=".xls" onChange={handleUpload} name="invoice_sheet" />
 				<input type="reset" />
 			</form>
-			{data ? JSON.stringify(data) : null}
+			{data ? <Info {...data} /> : null}
 		</div>
 	);
 }
